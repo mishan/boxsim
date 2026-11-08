@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: MIT
    Copyright (c) 2026 Misha Nasledov. See LICENSE. */
 /* A debug console on the link the firmware logs on (the USB-Serial/JTAG
-   port; UART0 built with DEBUGCON_UART, for QEMU): from the desktop, the
-   screen as drawn, the audio as written to the codec, and the
-   touchscreen and buttons played as if by hand.
+   port; UART0 built with DEBUGCON_UART, for QEMU; a pty in the simulator):
+   from the desktop, the screen as drawn, the audio as written to the
+   codec, and the touchscreen and buttons played as if by hand.
    tools/boxctl.py drives it; its frames are debugframe.h's, among the
    log's text. See README.md. */
 #pragma once

@@ -27,7 +27,74 @@
 /* A frame is one write, never split by a line of log: the driver's ring
    takes a write whole or not at all, and the log's text goes through it
    too once the console uses the driver. */
-#ifdef DEBUGCON_UART
+#if CONFIG_IDF_TARGET_LINUX
+/* The simulator's link, a pty for boxctl to open; the log stays on stdout. */
+#include <fcntl.h>
+#include <poll.h>
+#include <stdlib.h>
+#include <termios.h>
+#include <unistd.h>
+
+static int pty = -1;
+
+static bool
+linkOpen (void)
+{
+    struct termios t;
+
+    pty = posix_openpt(O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (pty < 0 || grantpt(pty) || unlockpt(pty) || tcgetattr(pty, &t))
+        return false;
+    /* Frames are binary: no echo, no newline translation. */
+    cfmakeraw(&t);
+    tcsetattr(pty, TCSANOW, &t);
+    printf("debugcon: on %s\n", ptsname(pty));
+    return true;
+}
+
+/* Polled, as a task blocked in read() would hold up the scheduler's other
+   tasks till the next tick. */
+static int
+linkRead (uint8_t *b, int n, TickType_t t)
+{
+    for (TickType_t waited = 0;; waited++)
+    {
+        const ssize_t r = read(pty, b, n);
+
+        if (r > 0 || waited >= t)
+            return r > 0 ? (int)r : 0;
+        vTaskDelay(1);
+    }
+}
+
+/* A frame begun is finished, or the host reads it as text. */
+static bool
+linkWrite (const uint8_t *b, size_t n)
+{
+    for (int tries = 0; n > 0 && tries < 200; tries++)
+    {
+        const ssize_t w = write(pty, b, n);
+
+        if (w > 0)
+        {
+            b += w;
+            n -= w;
+        }
+        else
+            vTaskDelay(1);
+    }
+    return n == 0;
+}
+
+/* No one has the pty open while it hangs up. */
+static bool
+linkUp (void)
+{
+    struct pollfd p = { .fd = pty, .events = POLLOUT };
+
+    return poll(&p, 1, 0) >= 0 && !(p.revents & POLLHUP);
+}
+#elif defined(DEBUGCON_UART)
 #include "driver/uart.h"
 #include "driver/uart_vfs.h"
 

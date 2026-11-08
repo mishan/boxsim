@@ -2,7 +2,7 @@
    Copyright (c) 2026 Misha Nasledov. See LICENSE. */
 /* The Espressif ESP32-S3-BOX's hardware as a program plays it: the LCD,
    the speaker, the touchscreen and its red button, the side button and the
-   IMU. box_hal_esp32.c is the BOX's; another can stand in for it, a window
+   IMU. box_hal_esp32.c is the BOX's; box_hal_sim.c stands in for it, a window
    on a desktop, under the same calls. Taps see what is drawn and played
    and can press as a hand would, the program none the wiser. */
 #pragma once

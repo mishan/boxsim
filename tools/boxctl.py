@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Misha Nasledov. See LICENSE.
 """The BOX's debug console (debugcon.c) from the desktop, over the
-USB serial link it logs on: the screen as a PNG, the audio as a WAV, the
+USB serial link it logs on, or the simulator's pty: the screen as a PNG, the audio as a WAV, the
 touchscreen and buttons played, and the log. See README.md."""
 
 import argparse
