@@ -28,9 +28,29 @@ desktop: screenshots, the audio as written, and taps and presses.
 
 ## Using it
 
-In a firmware's top-level `CMakeLists.txt`, before `project()`:
+A firmware takes boxsim as an ESP-IDF component, pinned to a release,
+from the component manager or as a git submodule. From the component
+manager, in main's `idf_component.yml`:
 
-    set(EXTRA_COMPONENT_DIRS "path/to/boxsim/components")
+    dependencies:
+      boxsim:
+        git: https://github.com/mishan/boxsim.git
+        path: components/boxsim
+        version: v0.1.0
+
+`version` is a tag or a commit, and the firmware's lock file records the
+commit it came to, so its builds take the same boxsim, and the same
+esp_codec_dev, until it's changed. As a submodule instead:
+
+    git submodule add https://github.com/mishan/boxsim.git boxsim
+    git -C boxsim checkout v0.1.0
+
+and `set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/boxsim/components")`
+in the firmware's top-level `CMakeLists.txt`, before the `include`.
+
+Either way, in that `CMakeLists.txt`, after the `include` and before
+`project()`:
+
     include($ENV{IDF_PATH}/tools/cmake/project.cmake)
     if(IDF_TARGET STREQUAL "linux")
       # Its own lock file, as the components differ, and only what main
@@ -40,7 +60,9 @@ In a firmware's top-level `CMakeLists.txt`, before `project()`:
     endif()
 
 and `REQUIRES boxsim` in main's `idf_component_register`.
-`examples/hello` sets both properties for every target.
+`examples/hello` takes boxsim from this tree and sets both properties
+for every target. Releases are tagged `vMAJOR.MINOR.PATCH`, the version
+in `components/boxsim/idf_component.yml`.
 
 ## Building
 
@@ -208,13 +230,14 @@ default 2, the screen's (100, 150) is the window's (200, 300).
 
 `boxctl` checks boxctl's reading against `tests/fakebox.c`, a fake
 console that writes frames with `debugframe.h`. `hello-build` builds
-`examples/hello` for linux, and `hello` runs it headless: with a script,
-checking the bars, a touch's dot and the level after a roll in its
-screenshots, and the beep's timing, level and pitch in its WAV; and with
-boxctl over the console's pty: tapping, taking a screenshot, a line too
-long, and streaming audio to a reader that stalls or reads too slowly.
-`hello-nocon-build` builds it without the console, which `hello` checks
-isn't there.
+`examples/hello` for linux, and `hello` runs it: headless with a
+script, checking the bars, a touch's dot and the level after a roll in
+its screenshots, and the beep's timing, level and pitch in its WAV; the
+beep again at 48 kHz, played by SDL's dummy video and disk audio
+drivers; and with boxctl over the console's pty: tapping, taking a
+screenshot, a line too long, and streaming audio to a reader that
+stalls or reads too slowly. `hello-nocon-build` builds it without the
+console, which `hello` checks isn't there.
 
 ## Third-party
 
