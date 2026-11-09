@@ -233,11 +233,12 @@ box_button_down (int button)
 bool
 box_imu_read (float accel[3], float gyro[3])
 {
-    if (!(served & BOX_HAL_IMU))
+    const bool jolt = esp_timer_get_time() < shakeUntil || (taps.jolt && taps.jolt());
+
+    if (!(served & BOX_HAL_IMU) && !jolt)
         return false;
 
     const float t = tilt * (float)M_PI / 180, r = roll * (float)M_PI / 180;
-    const bool jolt = esp_timer_get_time() < shakeUntil || (taps.jolt && taps.jolt());
 
     accel[2] = -sinf(t);
     accel[1] = -sinf(r);

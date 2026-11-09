@@ -57,7 +57,8 @@ void box_audio_write (const int16_t *frames, int count);
 /* The fingers on the screen, up to `most'. */
 int box_touch_read (box_hal_contact *out, int most);
 bool box_button_down (int button);
-/* In g and degrees a second, the sensor's axes; false if unread. */
+/* In g and degrees a second, the sensor's axes; false if unread. A tap's
+   jolt reads even with no IMU, as the BOX upright. */
 bool box_imu_read (float accel[3], float gyro[3]);
 
 #ifdef __cplusplus

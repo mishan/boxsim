@@ -5,6 +5,7 @@
 #include "box_hal.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -17,6 +18,7 @@
 #include "esp_lcd_panel_vendor.h"
 
 #define STRIP 16                /* rows the SPI sends at most at once */
+#define TT21100 0x24            /* the touch controller's address */
 
 static box_hal_taps taps;
 static i2c_master_bus_handle_t bus;
@@ -136,6 +138,29 @@ box_lcd_draw (int x0, int y0, int x1, int y1, const uint16_t *pixels)
 /* The red button under the screen, as its report last said. */
 static bool homeDown = false;
 
+/* A report too long to keep, read through in one transaction and thrown
+   away, a buffer's worth at a time. */
+static void
+touchSkip (int n)
+{
+    static uint8_t sink[512];
+    static i2c_operation_job_t ops[3 + 65535 / sizeof(sink) + 1];
+    const uint8_t addr = TT21100 << 1 | 1;
+    int k = 0;
+
+    ops[k++] = (i2c_operation_job_t){ .command = I2C_MASTER_CMD_START };
+    ops[k++] = (i2c_operation_job_t){ .command = I2C_MASTER_CMD_WRITE,
+                                      .write = { true, &addr, 1 } };
+    for (int at = 0; at < n; at += sizeof(sink))
+        ops[k++] = (i2c_operation_job_t){
+            .command = I2C_MASTER_CMD_READ,
+            .read = { at + (int)sizeof(sink) < n ? I2C_ACK_VAL : I2C_NACK_VAL, sink,
+                      n - at < (int)sizeof(sink) ? n - at : sizeof(sink) } };
+    ops[k++] = (i2c_operation_job_t){ .command = I2C_MASTER_CMD_STOP };
+    /* About 40 bytes a millisecond at 400 kHz. */
+    i2c_master_execute_defined_operations(touch, ops, k, 20 + n / 40);
+}
+
 /* Read as it asks to be: the length of its report, then the whole report,
    whatever its length. A report left unread is offered again and again,
    and nothing newer behind it, so every one is read through. Finger
@@ -150,8 +175,9 @@ box_touch_read (box_hal_contact *out, int most)
     const int n = touch && i2c_master_receive(touch, len, 2, 20) == ESP_OK
                 ? len[0] | (len[1] << 8) : 0;
 
-    if (n >= 7 && n <= (int)sizeof(report) &&
-        i2c_master_receive(touch, report, n, 20) == ESP_OK)
+    if (n > (int)sizeof(report))
+        touchSkip(n);
+    else if (n >= 2 && i2c_master_receive(touch, report, n, 20) == ESP_OK && n >= 7)
     {
         if (n == 14)
             homeDown = report[5] & 1;
@@ -190,20 +216,28 @@ box_button_down (int button)
 
 /* ---- the IMU, an ICM-42607 at 0x68 ---------------------------------------- */
 
+/* With no IMU to read, a jolt is still felt, by a BOX standing upright and
+   still: a firmware's shake detection sees the console's shake either way. */
 bool
 box_imu_read (float accel[3], float gyro[3])
 {
+    static const uint8_t upright[12] = { 0xf8, 0 };     /* (-1, 0, 0) g, still */
     uint8_t reg = 0x0b, d[12];
+    const bool jolt = taps.jolt && taps.jolt();
 
     if (!imu || i2c_master_transmit_receive(imu, &reg, 1, d, sizeof(d), 20) != ESP_OK)
-        return false;
+    {
+        if (!jolt)
+            return false;
+        memcpy(d, upright, sizeof(d));
+    }
     for (int k = 0; k < 3; k++)
     {
         /* At its defaults: 2048 to the g, 16.4 to the degree a second. */
         accel[k] = (int16_t)((d[2 * k] << 8) | d[2 * k + 1]) / 2048.0f;
         gyro[k] = (int16_t)((d[6 + 2 * k] << 8) | d[7 + 2 * k]) / 16.4f;
     }
-    if (taps.jolt && taps.jolt())
+    if (jolt)
         for (int k = 0; k < 3; k++)
             accel[k] *= 3;
     return true;
@@ -246,7 +280,7 @@ box_hal_open (unsigned want, int rate, int volume)
     }
     if (want & BOX_HAL_TOUCH)
     {
-        ic.device_address = 0x24;
+        ic.device_address = TT21100;
         if (i2c_master_bus_add_device(bus, &ic, &touch) == ESP_OK)
             opened |= BOX_HAL_TOUCH;
     }
