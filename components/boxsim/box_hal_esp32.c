@@ -3,6 +3,7 @@
 /* box_hal.h on the ESP32-S3-BOX itself, its parts as Espressif's esp-box
    BSP drives them. */
 #include "box_hal.h"
+#include "tt21100.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -163,9 +164,8 @@ touchSkip (int n)
 
 /* Read as it asks to be: the length of its report, then the whole report,
    whatever its length. A report left unread is offered again and again,
-   and nothing newer behind it, so every one is read through. Finger
-   records are ten bytes each after a seven-byte header; a 14-byte report
-   is the buttons'. */
+   and nothing newer behind it, so every one is read through. A 14-byte
+   report is the buttons'. */
 int
 box_touch_read (box_hal_contact *out, int most)
 {
@@ -182,18 +182,7 @@ box_touch_read (box_hal_contact *out, int most)
         if (n == 14)
             homeDown = report[5] & 1;
         else
-            for (int r = 0; r < (report[5] & 0x1f) && 7 + 10 * (r + 1) <= n; r++)
-            {
-                const uint8_t *t = report + 7 + 10 * r;
-
-                if ((t[0] & 0x07) != 0 || count >= most)    /* a finger, not a pen */
-                    continue;
-                out[count].id = t[1] & 0x1f;
-                /* Mirrored across the columns, as the screen is drawn. */
-                out[count].x = BOX_HAL_W - 1 - (t[2] | (t[3] << 8));
-                out[count].y = t[4] | (t[5] << 8);
-                count++;
-            }
+            count = tt21100_contacts(report, n, out, most);
     }
     if (most > 0 && taps.finger && taps.finger(&out[0].x, &out[0].y))
     {
@@ -221,7 +210,7 @@ box_button_down (int button)
 bool
 box_imu_read (float accel[3], float gyro[3])
 {
-    static const uint8_t upright[12] = { 0xf8, 0 };     /* (-1, 0, 0) g, still */
+    static const uint8_t upright[12] = { 0x08, 0 };     /* (1, 0, 0) g, still */
     uint8_t reg = 0x0b, d[12];
     const bool jolt = taps.jolt && taps.jolt();
 

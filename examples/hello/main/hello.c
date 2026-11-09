@@ -97,7 +97,7 @@ app_main (void)
     for (bool home = false;; vTaskDelay(pdMS_TO_TICKS(10)))
     {
         box_hal_contact at;
-        float accel[3] = { -1, 0, 0 }, gyro[3];
+        float accel[3] = { 1, 0, 0 }, gyro[3];
         const bool touched = box_touch_read(&at, 1) > 0;
         const bool clear = box_button_down(BOX_HAL_HOME) && !home;
 

@@ -7,6 +7,7 @@
    scheduler: the linux port switches its tasks' threads with signals,
    which SDL's threads must never take. */
 #include "box_hal.h"
+#include "pose.h"
 
 #include <math.h>
 #include <pthread.h>
@@ -228,8 +229,6 @@ box_button_down (int button)
     return down || (taps.held && taps.held(button));
 }
 
-/* Standing upright facing you, the BOX reads (-1, 0, 0) g: tilting the top
-   away brings z in, rolling it like a wheel y. */
 bool
 box_imu_read (float accel[3], float gyro[3])
 {
@@ -238,11 +237,7 @@ box_imu_read (float accel[3], float gyro[3])
     if (!(served & BOX_HAL_IMU) && !jolt)
         return false;
 
-    const float t = tilt * (float)M_PI / 180, r = roll * (float)M_PI / 180;
-
-    accel[2] = -sinf(t);
-    accel[1] = -sinf(r);
-    accel[0] = -sqrtf(fmaxf(0, 1 - accel[1] * accel[1] - accel[2] * accel[2]));
+    box_sim_gravity(tilt, roll, accel);
     for (int k = 0; k < 3; k++)
     {
         accel[k] *= jolt ? 3 : 1;

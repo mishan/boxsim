@@ -1,11 +1,17 @@
-# boxsim's tests, not a firmware: boxctl's reader, and examples/hello built
-# for the linux target and run headless. Needs ESP-IDF's environment:
+# boxsim's tests, not a firmware: what the HAL reads, boxctl's reader, and
+# examples/hello built for the linux target and run headless. Needs
+# ESP-IDF's environment:
 #   . ~/esp/esp-idf/export.sh && cmake -B build && ctest --test-dir build
 cmake_minimum_required(VERSION 3.16)
-project(boxsim-tests NONE)
+project(boxsim-tests C)
 enable_testing()
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_program(IDF_PY idf.py REQUIRED)
+
+add_executable(hal_test tests/hal_test.c)
+target_include_directories(hal_test PRIVATE components/boxsim/include)
+target_link_libraries(hal_test m)
+add_test(NAME hal COMMAND hal_test)
 
 set(hello "${CMAKE_BINARY_DIR}/hello")
 add_test(NAME boxctl COMMAND Python3::Interpreter -m unittest tests/test_boxctl.py

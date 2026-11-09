@@ -101,7 +101,7 @@ exactly what the firmware drew.
 | X | a shake, a 3 g jolt for a tenth of a second |
 
 A click lasts at least 50 ms, so a firmware that polls the screen sees
-it. The IMU reads (-1, 0, 0) g upright, as the BOX does, and its gyro
+it. The IMU reads (1, 0, 0) g upright, as the BOX does, and its gyro
 reads nothing.
 
     --scale N      the window N times the screen's 320x240 (2)
