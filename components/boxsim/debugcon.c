@@ -285,8 +285,10 @@ screenshot (uint32_t number)
 
 /* ---- the hand ------------------------------------------------------------- */
 
-static volatile bool sideDown = false, homeDown = false, fingerDown = false;
-static volatile int fingerX = 0, fingerY = 0;
+static volatile bool sideDown = false, homeDown = false;
+/* 0, or a finger down: 1 << 31 | y << 16 | x, one word so a reader never
+   pairs a new x with an old y. */
+static uint32_t fingerAt = 0;
 static volatile int64_t shakeUntil = 0;
 
 static bool held (int button) { return button == BOX_HAL_SIDE ? sideDown : homeDown; }
@@ -295,10 +297,12 @@ static bool jolt (void) { return esp_timer_get_time() < shakeUntil; }
 static bool
 finger (int *x, int *y)
 {
-    if (!fingerDown)
+    const uint32_t f = __atomic_load_n(&fingerAt, __ATOMIC_RELAXED);
+
+    if (!f)
         return false;
-    *x = fingerX;
-    *y = fingerY;
+    *x = f & 0xffff;
+    *y = (f >> 16) & 0x7fff;
     return true;
 }
 
@@ -373,19 +377,17 @@ run (char *line)
             reply("X 0 to %d, Y 0 to %d", W - 1, H - 1);
             return;
         }
-        fingerX = x;
-        fingerY = y;
-        fingerDown = true;
+        __atomic_store_n(&fingerAt, 1u << 31 | (uint32_t)y << 16 | (uint32_t)x, __ATOMIC_RELAXED);
         if (!strcmp(word, "tap"))
         {
             wait(80);
-            fingerDown = false;
+            __atomic_store_n(&fingerAt, 0, __ATOMIC_RELAXED);
         }
         reply("ok");
     }
     else if (!strcmp(word, "up"))
     {
-        fingerDown = false;
+        __atomic_store_n(&fingerAt, 0, __ATOMIC_RELAXED);
         reply("ok");
     }
     else if ((!strcmp(word, "press") || !strcmp(word, "hold")) && !strcmp(arg, "side"))
