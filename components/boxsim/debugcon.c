@@ -15,6 +15,9 @@
 
 #include "box_hal.h"
 #include "debugframe.h"
+#include "sdkconfig.h"
+
+#if CONFIG_BOXSIM_DEBUGCON
 
 #define W BOX_HAL_W
 #define H BOX_HAL_H
@@ -482,3 +485,6 @@ debugcon_start (int r, unsigned in, void (*status) (char *, size_t))
     box_hal_tap(&taps);
     xTaskCreatePinnedToCore(consoleTask, "debugcon", 6144, NULL, 2, NULL, 0);
 }
+#else
+void debugcon_start (int r, unsigned in, void (*status) (char *, size_t)) {}
+#endif

@@ -154,5 +154,18 @@ class Hello(unittest.TestCase):
         time.sleep(2.5)
         self.assertIn("audio off", box.ask("status"))
 
+
+NOCON = os.environ.get("HELLO_NOCON_ELF", "")
+
+
+@unittest.skipUnless(os.path.exists(NOCON), "no $HELLO_NOCON_ELF")
+class NoConsole(unittest.TestCase):
+    def test_built_without_the_console(self):
+        out = subprocess.run([NOCON, "--headless", "--script", "300 quit"],
+                             check=True, timeout=20, capture_output=True, text=True).stdout
+        self.assertIn("hello: opened", out)
+        self.assertNotIn("debugcon", out)
+
+
 if __name__ == "__main__":
     unittest.main()

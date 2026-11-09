@@ -5,7 +5,8 @@
    from the desktop, the screen as drawn, the audio as written to the
    codec, and the touchscreen and buttons played as if by hand.
    tools/boxctl.py drives it; its frames are debugframe.h's, among the
-   log's text. See README.md. */
+   log's text. Built in unless CONFIG_BOXSIM_DEBUGCON is off, when
+   debugcon_start does nothing. See README.md. */
 #pragma once
 #include <stdbool.h>
 #include <stddef.h>

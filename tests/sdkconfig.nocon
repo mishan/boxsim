@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Misha Nasledov. See LICENSE.
+# examples/hello for the tests, without the debug console.
+CONFIG_BOXSIM_DEBUGCON=n

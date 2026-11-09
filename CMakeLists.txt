@@ -15,7 +15,12 @@ add_test(NAME hello-build
          COMMAND sh -c "[ -f '${hello}/sdkconfig' ] || '${IDF_PY}' --preview -B '${hello}' -D SDKCONFIG='${hello}/sdkconfig' set-target linux && '${IDF_PY}' -B '${hello}' -D SDKCONFIG='${hello}/sdkconfig' build"
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/examples/hello")
 set_tests_properties(hello-build PROPERTIES FIXTURES_SETUP hello)
+set(nocon "${CMAKE_BINARY_DIR}/hello-nocon")
+add_test(NAME hello-nocon-build
+         COMMAND sh -c "[ -f '${nocon}/sdkconfig' ] || '${IDF_PY}' --preview -B '${nocon}' -D SDKCONFIG='${nocon}/sdkconfig' -D 'SDKCONFIG_DEFAULTS=sdkconfig.defaults;${CMAKE_SOURCE_DIR}/tests/sdkconfig.nocon' set-target linux && '${IDF_PY}' -B '${nocon}' -D SDKCONFIG='${nocon}/sdkconfig' build"
+         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/examples/hello")
+set_tests_properties(hello-nocon-build PROPERTIES FIXTURES_SETUP hello)
 add_test(NAME hello COMMAND Python3::Interpreter -m unittest tests/test_hello.py
          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 set_tests_properties(hello PROPERTIES FIXTURES_REQUIRED hello
-                     ENVIRONMENT "HELLO_ELF=${hello}/hello.elf;HELLO_OUT=${CMAKE_BINARY_DIR}")
+                     ENVIRONMENT "HELLO_ELF=${hello}/hello.elf;HELLO_NOCON_ELF=${nocon}/hello.elf;HELLO_OUT=${CMAKE_BINARY_DIR}")

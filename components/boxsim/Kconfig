@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Misha Nasledov. See LICENSE.
+menu "boxsim"
+
+config BOXSIM_DEBUGCON
+    bool "The debug console"
+    default y
+    help
+        debugcon.h's console, on the link the firmware logs on: the screen,
+        the audio and the inputs, from the desktop with tools/boxctl.py.
+        Off, debugcon_start does nothing and the console isn't built in.
+
+endmenu

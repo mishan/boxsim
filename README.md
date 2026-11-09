@@ -166,6 +166,12 @@ room for is dropped, and `audio off` and `status` say how many. The
 screenshot is the pixels as handed to the panel, before the SPI sends
 them, big-endian RGB565 as the panel takes them.
 
+The console is built in unless `CONFIG_BOXSIM_DEBUGCON` is off (in
+`idf.py menuconfig`, boxsim, or `CONFIG_BOXSIM_DEBUGCON=n` in a
+firmware's `sdkconfig.defaults`), for a release, say: `debugcon_start`
+does nothing then, and none of the console is in the firmware. It's on
+by default, as development wants it.
+
 QEMU has no USB-Serial/JTAG; built with `DEBUGCON_UART=1` in the
 environment, the console is on UART0 instead, which QEMU's `-serial` can
 give boxctl as `socket://localhost:PORT`.
@@ -205,7 +211,10 @@ console that writes frames with `debugframe.h`. `hello-build` builds
 `examples/hello` for linux, and `hello` runs it headless: with a script,
 checking the bars, a touch's dot and the level after a roll in its
 screenshots, and the beep's timing, level and pitch in its WAV; and with
-boxctl over the console's pty, tapping and taking a screenshot.
+boxctl over the console's pty: tapping, taking a screenshot, a line too
+long, and streaming audio to a reader that stalls or reads too slowly.
+`hello-nocon-build` builds it without the console, which `hello` checks
+isn't there.
 
 ## Third-party
 
