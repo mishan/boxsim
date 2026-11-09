@@ -140,6 +140,14 @@ class Hello(unittest.TestCase):
         self.assertRegex(" ".join(replies), r"^audio off: \d+ blocks sent")
 
     @needs_serial
+    def test_console_refuses_a_line_too_long(self):
+        box = self.console()
+        box.ser.write(b"tap 300 100" + b" " * 120 + b"x\n")
+        replies = [f.payload.decode() for f in box.events(1) if f.kind == "T"]
+        self.assertEqual(len(replies), 1, replies)
+        self.assertRegex(replies[0], r"^tap 300 100 +: longer than 127 bytes; not run$")
+
+    @needs_serial
     def test_console_ends_the_stream_when_the_link_stalls(self):
         box = self.console()
         box.ask("audio on")

@@ -431,6 +431,7 @@ consoleTask (void *arg)
 {
     char line[128];
     int len = 0;
+    bool over = false;
 
     for (;;)
     {
@@ -441,12 +442,21 @@ consoleTask (void *arg)
             if (in[i] == '\n' || in[i] == '\r')
             {
                 line[len] = 0;
-                if (len > 0)
+                /* Not run cut short, where its end could change what it does. */
+                if (over)
+                {
+                    asked = line;
+                    reply("longer than %d bytes; not run", (int)sizeof(line) - 1);
+                }
+                else if (len > 0)
                     run(line);
                 len = 0;
+                over = false;
             }
             else if (len < (int)sizeof(line) - 1)
                 line[len++] = (char)in[i];
+            else
+                over = true;
         drain();
     }
 }
