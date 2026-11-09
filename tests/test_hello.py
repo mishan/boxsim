@@ -40,6 +40,11 @@ def tone(pcm, rate, t0, t1):
     return max(abs(v) for v in seg), crossings / (t1 - t0)
 
 
+needs_serial = unittest.skipUnless(
+    subprocess.run([sys.executable, "-c", "import serial"], capture_output=True).returncode == 0,
+    "no pyserial")
+
+
 @unittest.skipUnless(os.path.exists(ELF), "no $HELLO_ELF")
 class Hello(unittest.TestCase):
     def test_script(self):
@@ -90,28 +95,56 @@ class Hello(unittest.TestCase):
         self.assertGreater(peak, 7900)
         self.assertAlmostEqual(hz, 880, delta=40)
 
-    @unittest.skipUnless(subprocess.run([sys.executable, "-c", "import serial"],
-                                        capture_output=True).returncode == 0, "no pyserial")
-    def test_console(self):
+    def console(self):
+        """hello run headless, and its console's pty, opened."""
         import serial
         sim = subprocess.Popen([ELF, "--headless"], stdout=subprocess.PIPE, text=True)
-        try:
-            for line in sim.stdout:
-                m = re.match(r"debugcon: on (\S+)", line)
-                if m:
-                    break
-            box = boxctl.Box(serial.serial_for_url(m[1], 115200, timeout=0.05))
-            self.assertEqual(box.ask("tap 300 100"), "ok")
-            time.sleep(0.1)
-            shot = boxctl.Shot()
-            box.ask("screenshot", 10, shot.add)
-            rgb = boxctl.rgb565be_to_rgb(shot.pixels())
-            px = lambda x, y: tuple(rgb[3 * (y * W + x):3 * (y * W + x) + 3])
-            self.assertEqual((px(300, 100), px(300, 120), px(20, 100)), (WHITE, BARS[7], BARS[0]))
-        finally:
-            sim.kill()
-            sim.wait()
+        self.addCleanup(sim.wait)
+        self.addCleanup(sim.kill)
+        for line in sim.stdout:
+            m = re.match(r"debugcon: on (\S+)", line)
+            if m:
+                break
+        return boxctl.Box(serial.serial_for_url(m[1], 115200, timeout=0.05))
 
+    @needs_serial
+    def test_console(self):
+        box = self.console()
+        self.assertEqual(box.ask("tap 300 100"), "ok")
+        time.sleep(0.1)
+        shot = boxctl.Shot()
+        box.ask("screenshot", 10, shot.add)
+        rgb = boxctl.rgb565be_to_rgb(shot.pixels())
+        px = lambda x, y: tuple(rgb[3 * (y * W + x):3 * (y * W + x) + 3])
+        self.assertEqual((px(300, 100), px(300, 120), px(20, 100)), (WHITE, BARS[7], BARS[0]))
+
+    @needs_serial
+    def test_console_reads_commands_while_a_slow_link_streams(self):
+        """Audio read at 25 KB/s, slower than the 66 KB/s it streams at:
+        `audio off', sent once the pty's buffer is full, is still read, and
+        every byte sent is a whole frame."""
+        box = self.console()
+        self.assertEqual(box.ask("audio on"), "16000 Hz, 2 channels")
+        replies, text, asked, start = [], [], False, time.monotonic()
+        while not replies and time.monotonic() - start < 12:
+            if not asked and time.monotonic() - start > 3:
+                box.ser.write(b"audio off\n")
+                asked = True
+            for e in box.reader.feed(box.ser.read(256)):
+                if isinstance(e, str):
+                    text.append(e)
+                elif e.kind == "T":
+                    replies.append(e.payload.decode())
+            time.sleep(0.01)
+        self.assertEqual(text, [])
+        self.assertRegex(" ".join(replies), r"^audio off: \d+ blocks sent")
+
+    @needs_serial
+    def test_console_ends_the_stream_when_the_link_stalls(self):
+        box = self.console()
+        box.ask("audio on")
+        time.sleep(2.5)
+        self.assertIn("audio off", box.ask("status"))
 
 if __name__ == "__main__":
     unittest.main()

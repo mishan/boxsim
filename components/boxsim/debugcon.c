@@ -21,6 +21,7 @@
 #define PIECE 1024                      /* of a screenshot, a frame each */
 #define SLOT 128                        /* audio frames a slot */
 #define SLOTS 256                       /* a second of the BOX's audio */
+#define DRAIN_MOST 16                   /* slots sent between reads of commands */
 
 /* ---- the link ------------------------------------------------------------- */
 
@@ -67,23 +68,12 @@ linkRead (uint8_t *b, int n, TickType_t t)
     }
 }
 
-/* A frame begun is finished, or the host reads it as text. */
-static bool
+static size_t
 linkWrite (const uint8_t *b, size_t n)
 {
-    for (int tries = 0; n > 0 && tries < 200; tries++)
-    {
-        const ssize_t w = write(pty, b, n);
+    const ssize_t w = write(pty, b, n);
 
-        if (w > 0)
-        {
-            b += w;
-            n -= w;
-        }
-        else
-            vTaskDelay(1);
-    }
-    return n == 0;
+    return w > 0 ? (size_t)w : 0;
 }
 
 /* No one has the pty open while it hangs up. */
@@ -108,7 +98,7 @@ linkOpen (void)
 }
 
 static int linkRead (uint8_t *b, int n, TickType_t t) { return uart_read_bytes(UART_NUM_0, b, n, t); }
-static bool linkWrite (const uint8_t *b, size_t n) { return uart_write_bytes(UART_NUM_0, b, n) == (int)n; }
+static size_t linkWrite (const uint8_t *b, size_t n) { const int w = uart_write_bytes(UART_NUM_0, b, n); return w > 0 ? (size_t)w : 0; }
 static bool linkUp (void) { return true; }
 #else
 #include "driver/usb_serial_jtag.h"
@@ -128,22 +118,27 @@ linkOpen (void)
 static int linkRead (uint8_t *b, int n, TickType_t t) { return usb_serial_jtag_read_bytes(b, n, t); }
 /* Without waiting: a write waiting on the ring holds the driver's lock,
    and the log's every character would wait behind it. */
-static bool linkWrite (const uint8_t *b, size_t n) { return usb_serial_jtag_write_bytes(b, n, 0) == (int)n; }
+static size_t linkWrite (const uint8_t *b, size_t n) { const int w = usb_serial_jtag_write_bytes(b, n, 0); return w > 0 ? (size_t)w : 0; }
 static bool linkUp (void) { return usb_serial_jtag_is_connected(); }
 #endif
 
-/* A frame sent whole, or after a fifth of a second of the link taking
-   nothing, not at all. */
+/* A frame sent whole within a fifth of a second, or given up on: a frame
+   cut short the host reads as text. */
 static bool
 send (char type, uint32_t seq, const void *payload, size_t len)
 {
     static uint8_t frame[DEBUGFRAME_HEAD + DEBUGFRAME_MOST + 4];
     const size_t n = debugframe_encode(frame, type, seq, payload, len);
+    const int64_t until = esp_timer_get_time() + 200000;
+    size_t sent = 0;
 
-    for (int tries = 0; tries < 200 && linkUp(); tries++)
+    while (linkUp())
     {
-        if (linkWrite(frame, n))
+        sent += linkWrite(frame + sent, n - sent);
+        if (sent == n)
             return true;
+        if (esp_timer_get_time() >= until)
+            break;
         vTaskDelay(1);
     }
     return false;
@@ -205,14 +200,17 @@ written (const int16_t *frames, int count)
     }
 }
 
-/* What the ring holds, sent; a block the link would not take in a fifth of
-   a second ends the stream, the host gone. */
+/* What the ring holds, sent, DRAIN_MOST slots at most, so a link slower
+   than the audio, which never empties the ring, still leaves time to read
+   commands; a block the link would not take in a fifth of a second ends
+   the stream, the host gone. */
 static void
 drain (void)
 {
     uint8_t payload[4 + 4 * SLOT];
 
-    for (uint32_t t = tail; t != __atomic_load_n(&head, __ATOMIC_ACQUIRE); t++)
+    for (uint32_t t = tail, end = tail + DRAIN_MOST;
+         t != end && t != __atomic_load_n(&head, __ATOMIC_ACQUIRE); t++)
     {
         const int n = ringCount[t % SLOTS];
 
