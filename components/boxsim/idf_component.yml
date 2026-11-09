@@ -1,3 +1,8 @@
+name: boxsim
+version: "0.1.0"
+description: "ESP32-S3-BOX board support, a desktop simulator on ESP-IDF's linux target, and a debug console"
+license: MIT
+url: https://github.com/mishan/boxsim
 dependencies:
   espressif/esp_codec_dev:
     version: "^1.3"
