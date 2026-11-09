@@ -72,6 +72,24 @@ class Hello(unittest.TestCase):
         self.assertAlmostEqual(hz, 880, delta=40)
         self.assertEqual(tone(pcm, rate, 0.85, 1.1)[0], 0)
 
+    def test_48k_on_a_device(self):
+        """At 48 kHz, played on a device (SDL's disk driver) rather than
+        paced to the clock: the beep on time, from the device's ring."""
+        raw = os.path.join(OUT, "hello48.raw")
+        if os.path.exists(raw):
+            os.remove(raw)
+        subprocess.run([ELF, "--script", "500 down 60 50; 700 up; 1100 quit"],
+                       env=dict(os.environ, HELLO_RATE="48000", SDL_VIDEODRIVER="dummy",
+                                SDL_AUDIODRIVER="disk", SDL_AUDIO_DRIVER="disk",
+                                SDL_DISKAUDIOFILE=raw, SDL_AUDIO_DISK_OUTPUT_FILE=raw),
+                       check=True, timeout=20, capture_output=True)
+        with open(raw, "rb") as f:
+            pcm = array.array("h", f.read())[0::2]
+        self.assertEqual(tone(pcm, 48000, 0.0, 0.35)[0], 0)
+        peak, hz = tone(pcm, 48000, 0.58, 0.64)
+        self.assertGreater(peak, 7900)
+        self.assertAlmostEqual(hz, 880, delta=40)
+
     @unittest.skipUnless(subprocess.run([sys.executable, "-c", "import serial"],
                                         capture_output=True).returncode == 0, "no pyserial")
     def test_console(self):

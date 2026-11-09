@@ -6,6 +6,7 @@
    The same on the BOX and in boxsim's window. */
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
@@ -16,7 +17,6 @@
 
 #define W BOX_HAL_W
 #define H BOX_HAL_H
-#define RATE 16000
 #define BLOCK 256
 #define BARS_H 200                      /* the bars; the level below */
 #define DOT 8
@@ -25,6 +25,7 @@ static const uint16_t BARS[8] = { 0xf800, 0x07e0, 0x001f, 0xffff,
                                   0xffe0, 0x07ff, 0xf81f, 0x0000 };
 
 static volatile bool beeping = false;
+static int rate = 16000;
 static uint16_t *buf;                   /* W * DOT, one strip of the screen */
 
 /* The panel takes RGB565 big-endian. */
@@ -70,7 +71,7 @@ audioTask (void *arg)
             const int16_t v = beeping ? (int16_t)(8000 * sinf(phase)) : 0;
 
             frames[2 * i] = frames[2 * i + 1] = v;
-            phase = fmodf(phase + 2 * (float)M_PI * 880 / RATE, 2 * (float)M_PI);
+            phase = fmodf(phase + 2 * (float)M_PI * 880 / rate, 2 * (float)M_PI);
         }
         box_audio_write(frames, BLOCK);
     }
@@ -79,10 +80,13 @@ audioTask (void *arg)
 void
 app_main (void)
 {
-    debugcon_start(RATE, DEBUGCON_TOUCH | DEBUGCON_HOME, NULL);
+    /* For the tests, in the simulator: the BOX has no environment. */
+    if (getenv("HELLO_RATE"))
+        rate = atoi(getenv("HELLO_RATE"));
+    debugcon_start(rate, DEBUGCON_TOUCH | DEBUGCON_HOME, NULL);
 
     const unsigned opened = box_hal_open(BOX_HAL_SPEAKER | BOX_HAL_SCREEN | BOX_HAL_TOUCH |
-                                         BOX_HAL_IMU, RATE, 60);
+                                         BOX_HAL_IMU, rate, 60);
 
     buf = heap_caps_malloc(W * DOT * 2, MALLOC_CAP_DMA);
     printf("hello: opened %#x\n", opened);

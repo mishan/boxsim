@@ -353,7 +353,7 @@ speakerOpen (void)
     SDL_AudioSpec want = { .freq = rate, .format = AUDIO_S16SYS, .channels = 2,
                            .samples = 512, .callback = pull };
 
-    ringFrames = rate * AHEAD_US / 1000000;
+    ringFrames = (int64_t)rate * AHEAD_US / 1000000;
     ring = calloc(ringFrames, 4);
     if (SDL_InitSubSystem(SDL_INIT_AUDIO) == 0)
         device = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0);
